@@ -1,0 +1,45 @@
+# Build directories
+build/
+Release/
+Debug/
+x64/
+x86/
+Win32/
+bin/
+obj/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+ipch/
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+# OpenCV binaries
+*.dll
+
+# Video outputs
+*.avi
+*.mp4
+*.mkv
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.log 
