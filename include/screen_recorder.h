@@ -26,8 +26,18 @@ public:
     // Stop recording
     void stop();
     
+    // Pause/Resume recording
+    void pause();
+    void resume();
+    bool isPaused() const;
+    
     // Check if recording is in progress
     bool isRecording() const;
+    
+    // Set recording parameters
+    void setCodec(VideoCodec codec);
+    void setQuality(QualityPreset quality);
+    void setFrameRate(int fps);
     
     // Get available hardware encoders
     static std::vector<VideoCodec> getAvailableCodecs();
@@ -63,6 +73,7 @@ private:
     
     // Recording control
     std::atomic<bool> recording;
+    std::atomic<bool> paused;
     std::string outputFile;
     int frameRate;
     double duration;

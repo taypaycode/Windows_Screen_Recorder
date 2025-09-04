@@ -10,7 +10,7 @@
 #pragma comment(lib, "Shcore.lib")
 #endif
 
-ScreenRecorder::ScreenRecorder() : recording(false), frameRate(30), duration(0), 
+ScreenRecorder::ScreenRecorder() : recording(false), paused(false), frameRate(30), duration(0), 
                                    screenWidth(0), screenHeight(0), screenLeft(0), screenTop(0),
                                    currentCodec(VideoCodec::H264_HARDWARE), currentQuality(QualityPreset::SMALL_SHARP)
 #ifdef HAVE_FFMPEG
@@ -516,4 +516,51 @@ double ScreenRecorder::estimateFileSize(int width, int height, int fps, double d
     double fileSizeMB = (bitrate * durationSec) / (8.0 * 1024.0);
     
     return fileSizeMB;
+}
+
+// New methods for ImGui integration
+void ScreenRecorder::pause() {
+    paused = true;
+    std::cout << "⏸️ Recording paused" << std::endl;
+}
+
+void ScreenRecorder::resume() {
+    paused = false;
+    std::cout << "▶️ Recording resumed" << std::endl;
+}
+
+bool ScreenRecorder::isPaused() const {
+    return paused;
+}
+
+void ScreenRecorder::setCodec(VideoCodec codec) {
+    currentCodec = codec;
+    std::cout << "🎯 Codec set to: ";
+    switch(codec) {
+        case VideoCodec::H264_HARDWARE: std::cout << "H264_HARDWARE"; break;
+        case VideoCodec::H264_SOFTWARE: std::cout << "H264_SOFTWARE"; break;
+        case VideoCodec::HEVC_HARDWARE: std::cout << "HEVC_HARDWARE"; break;
+        case VideoCodec::HEVC_SOFTWARE: std::cout << "HEVC_SOFTWARE"; break;
+        case VideoCodec::AV1_HARDWARE: std::cout << "AV1_HARDWARE"; break;
+        case VideoCodec::AV1_SOFTWARE: std::cout << "AV1_SOFTWARE"; break;
+        case VideoCodec::MJPEG: std::cout << "MJPEG"; break;
+    }
+    std::cout << std::endl;
+}
+
+void ScreenRecorder::setQuality(QualityPreset quality) {
+    currentQuality = quality;
+    std::cout << "📊 Quality set to: ";
+    switch(quality) {
+        case QualityPreset::SMALL_SHARP: std::cout << "SMALL_SHARP"; break;
+        case QualityPreset::BALANCED: std::cout << "BALANCED"; break;
+        case QualityPreset::HIGH_QUALITY: std::cout << "HIGH_QUALITY"; break;
+        case QualityPreset::LOSSLESS: std::cout << "LOSSLESS"; break;
+    }
+    std::cout << std::endl;
+}
+
+void ScreenRecorder::setFrameRate(int fps) {
+    frameRate = fps;
+    std::cout << "🎯 Frame rate set to: " << fps << " FPS" << std::endl;
 } 

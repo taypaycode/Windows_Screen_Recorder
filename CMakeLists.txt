@@ -4,11 +4,23 @@ project(ScreenIT)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Temporarily enable console for debugging (TDD verification)
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:CONSOLE")
+# Switch back to Windows subsystem for ImGui (no console needed)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
 
 # Define UNICODE for proper Windows API usage
 add_definitions(-DUNICODE -D_UNICODE)
+
+# Dear ImGui setup
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
 
 # Find required packages
 find_package(OpenCV REQUIRED)
@@ -31,12 +43,13 @@ endif()
 # Create and configure resource file - temporarily commented out
 # set(RESOURCE_FILES "src/icons.rc")
 
-# Add executable
+# Add executable with ImGui
 add_executable(${PROJECT_NAME} WIN32
     src/main.cpp
     src/screen_recorder.cpp
-    src/screen_ui.cpp
+    src/imgui_ui.cpp
     src/ffmpeg_encoder.cpp
+    ${IMGUI_SOURCES}
     # ${RESOURCE_FILES}
 )
 
@@ -44,6 +57,8 @@ add_executable(${PROJECT_NAME} WIN32
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/include
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
 )
 
 # Add FFmpeg include directories if found
@@ -59,6 +74,8 @@ target_link_libraries(${PROJECT_NAME}
     user32
     shell32
     comctl32
+    opengl32
+    dwmapi
 )
 
 # Link FFmpeg libraries if found
