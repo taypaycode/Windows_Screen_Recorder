@@ -36,6 +36,9 @@ CTestTestfile.cmake
 *.mp4
 *.mkv
 
+# Downloaded FFmpeg binaries and dependencies
+ffmpeg/
+
 # IDE files
 .vscode/
 .idea/

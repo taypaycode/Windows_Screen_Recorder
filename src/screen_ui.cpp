@@ -11,8 +11,10 @@
 #define IDC_FILENAME 2001
 #define IDC_FPS 2002
 #define IDC_DURATION 2003
-#define IDC_START 2004
-#define IDC_STOP 2005
+#define IDC_CODEC 2004
+#define IDC_QUALITY 2005
+#define IDC_START 2006
+#define IDC_STOP 2007
 #define IDM_EXIT 3001
 #define IDM_SHOW 3002
 
@@ -26,7 +28,7 @@ std::string generateDefaultFilename() {
     std::ostringstream oss;
     oss << "recording_" 
         << std::put_time(&tm, "%Y%m%d_%H%M%S") 
-        << ".avi";
+        << ".mp4";
     return oss.str();
 }
 
@@ -140,6 +142,12 @@ void ScreenUI::createControls() {
     CreateWindowEx(0, L"STATIC", L"Duration (seconds, 0 = until stopped):", WS_CHILD | WS_VISIBLE,
                    20, 100, 250, 20, hwnd, NULL, hInstance, NULL);
     
+    CreateWindowEx(0, L"STATIC", L"Video Codec:", WS_CHILD | WS_VISIBLE,
+                   20, 140, 120, 20, hwnd, NULL, hInstance, NULL);
+    
+    CreateWindowEx(0, L"STATIC", L"Quality Preset:", WS_CHILD | WS_VISIBLE,
+                   20, 180, 120, 20, hwnd, NULL, hInstance, NULL);
+    
     // Create edit controls
     std::string defaultFilename = generateDefaultFilename();
     std::wstring wDefaultFilename = stringToWideString(defaultFilename);
@@ -156,20 +164,48 @@ void ScreenUI::createControls() {
                                   WS_CHILD | WS_VISIBLE | ES_NUMBER,
                                   260, 100, 60, 20, hwnd, (HMENU)IDC_DURATION, hInstance, NULL);
     
-    // Create buttons
+    // Create codec combo box
+    codecComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                   WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                   160, 140, 200, 100, hwnd, (HMENU)IDC_CODEC, hInstance, NULL);
+    
+    // Populate codec combo box
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"H.264 Hardware (Recommended)");
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"H.264 Software");
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"HEVC Hardware (Smaller files)");
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"HEVC Software");
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"AV1 Hardware (Smallest files)");
+    SendMessage(codecComboBox, CB_ADDSTRING, 0, (LPARAM)L"MJPEG (Fallback)");
+    SendMessage(codecComboBox, CB_SETCURSEL, 0, 0); // Default to H.264 Hardware
+    
+    // Create quality combo box
+    qualityComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                     WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                     160, 180, 200, 100, hwnd, (HMENU)IDC_QUALITY, hInstance, NULL);
+    
+    // Populate quality combo box
+    SendMessage(qualityComboBox, CB_ADDSTRING, 0, (LPARAM)L"Small & Sharp (Recommended)");
+    SendMessage(qualityComboBox, CB_ADDSTRING, 0, (LPARAM)L"Balanced");
+    SendMessage(qualityComboBox, CB_ADDSTRING, 0, (LPARAM)L"High Quality");
+    SendMessage(qualityComboBox, CB_ADDSTRING, 0, (LPARAM)L"Lossless (Huge files)");
+    SendMessage(qualityComboBox, CB_SETCURSEL, 0, 0); // Default to Small & Sharp
+    
+    // Create buttons (moved down to accommodate new controls)
     startButton = CreateWindowEx(0, L"BUTTON", L"Start Recording",
                                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                                 80, 160, 120, 30, hwnd, (HMENU)IDC_START, hInstance, NULL);
+                                 80, 220, 120, 30, hwnd, (HMENU)IDC_START, hInstance, NULL);
     
     stopButton = CreateWindowEx(0, L"BUTTON", L"Stop Recording",
                                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
-                                200, 160, 120, 30, hwnd, (HMENU)IDC_STOP, hInstance, NULL);
+                                210, 220, 120, 30, hwnd, (HMENU)IDC_STOP, hInstance, NULL);
     
     // Set fonts for better appearance
     HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     SendMessage(outputFilenameEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(fpsEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(durationEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(codecComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(qualityComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(startButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(stopButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
 }
@@ -249,9 +285,11 @@ void ScreenUI::startRecording() {
     std::string outputFilename = getOutputFilename();
     int fps = getFps();
     double duration = getDuration();
+    VideoCodec codec = getSelectedCodec();
+    QualityPreset quality = getSelectedQuality();
     
-    // Start the recording
-    if (recorder->start(outputFilename, fps, duration)) {
+    // Start the recording with codec and quality settings
+    if (recorder->start(outputFilename, fps, duration, codec, quality)) {
         isRecording = true;
         
         // Update UI
@@ -334,6 +372,34 @@ double ScreenUI::getDuration() {
     
     double duration = _wtof(buffer);
     return (duration >= 0) ? duration : 0; // Default to 0 if invalid
+}
+
+// Get selected codec from combo box
+VideoCodec ScreenUI::getSelectedCodec() {
+    int selection = SendMessage(codecComboBox, CB_GETCURSEL, 0, 0);
+    
+    switch (selection) {
+        case 0: return VideoCodec::H264_HARDWARE;
+        case 1: return VideoCodec::H264_SOFTWARE;
+        case 2: return VideoCodec::HEVC_HARDWARE;
+        case 3: return VideoCodec::HEVC_SOFTWARE;
+        case 4: return VideoCodec::AV1_HARDWARE;
+        case 5: return VideoCodec::MJPEG;
+        default: return VideoCodec::H264_HARDWARE; // Default fallback
+    }
+}
+
+// Get selected quality preset from combo box
+QualityPreset ScreenUI::getSelectedQuality() {
+    int selection = SendMessage(qualityComboBox, CB_GETCURSEL, 0, 0);
+    
+    switch (selection) {
+        case 0: return QualityPreset::SMALL_SHARP;
+        case 1: return QualityPreset::BALANCED;
+        case 2: return QualityPreset::HIGH_QUALITY;
+        case 3: return QualityPreset::LOSSLESS;
+        default: return QualityPreset::SMALL_SHARP; // Default fallback
+    }
 }
 
 // Window procedure

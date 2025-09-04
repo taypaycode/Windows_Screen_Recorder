@@ -7,7 +7,7 @@
 
 // Window size constants
 #define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 300
+#define WINDOW_HEIGHT 380
 
 // Custom window messages
 #define WM_TRAYICON (WM_USER + 1)
@@ -57,6 +57,8 @@ private:
     std::string getOutputFilename();
     int getFps();
     double getDuration();
+    VideoCodec getSelectedCodec();
+    QualityPreset getSelectedQuality();
     
     // Main window handle
     HWND hwnd;
@@ -65,6 +67,8 @@ private:
     HWND outputFilenameEdit;
     HWND fpsEdit;
     HWND durationEdit;
+    HWND codecComboBox;
+    HWND qualityComboBox;
     HWND startButton;
     HWND stopButton;
     
