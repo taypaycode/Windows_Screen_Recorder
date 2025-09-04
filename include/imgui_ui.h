@@ -46,7 +46,7 @@ private:
     void renderRecordingControls();
     void renderSettingsPanel();
     void renderStatusBar();
-    void applyGamingTheme();
+    void applyModernTheme();
 
     // Event handling
     void handleStartRecording();
@@ -84,20 +84,22 @@ private:
         int fps = 30;
     } m_state;
     
-    // Gaming theme colors
-    struct GamingColors {
-        ImVec4 neonBlue = ImVec4(0.0f, 0.96f, 1.0f, 1.0f);
-        ImVec4 neonPink = ImVec4(1.0f, 0.0f, 0.43f, 1.0f);
-        ImVec4 neonGreen = ImVec4(0.22f, 1.0f, 0.08f, 1.0f);
-        ImVec4 neonPurple = ImVec4(0.75f, 0.0f, 1.0f, 1.0f);
-        ImVec4 neonOrange = ImVec4(1.0f, 0.53f, 0.0f, 1.0f);
-        ImVec4 pixelDark = ImVec4(0.10f, 0.10f, 0.18f, 1.0f);
-        ImVec4 pixelNavy = ImVec4(0.06f, 0.20f, 0.38f, 1.0f);
-        ImVec4 arcadeRed = ImVec4(1.0f, 0.28f, 0.34f, 1.0f);
+    // Modern professional colors
+    struct ModernColors {
+        ImVec4 white = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+        ImVec4 lightGray = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);
+        ImVec4 mediumGray = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+        ImVec4 darkGray = ImVec4(0.45f, 0.45f, 0.45f, 1.0f);
+        ImVec4 charcoal = ImVec4(0.25f, 0.25f, 0.25f, 1.0f);
+        ImVec4 accent = ImVec4(1.0f, 0.80f, 0.20f, 1.0f);       // Subtle yellow accent
+        ImVec4 accentHover = ImVec4(1.0f, 0.75f, 0.10f, 1.0f);  // Darker yellow on hover
+        ImVec4 success = ImVec4(0.20f, 0.75f, 0.30f, 1.0f);     // Clean green
+        ImVec4 recording = ImVec4(0.85f, 0.25f, 0.25f, 1.0f);   // Professional red
+        ImVec4 shadow = ImVec4(0.0f, 0.0f, 0.0f, 0.1f);         // Subtle shadows
     } m_colors;
     
     // Window properties
     static constexpr int WINDOW_WIDTH = 800;
     static constexpr int WINDOW_HEIGHT = 600;
-    static constexpr const char* WINDOW_TITLE = "🎮 ScreenIT Arcade - High Performance Recording";
+    static constexpr const char* WINDOW_TITLE = "ScreenIT Pro - Professional Screen Recording";
 };

@@ -38,26 +38,26 @@ ImGuiUI::~ImGuiUI() {
 }
 
 bool ImGuiUI::initialize(HINSTANCE hInstance) {
-    std::cout << "🎮 Initializing ScreenIT Arcade ImGui Interface..." << std::endl;
+    std::cout << "Initializing ScreenIT Arcade ImGui Interface..." << std::endl;
     
     if (!createWindow(hInstance)) {
-        std::cerr << "❌ Failed to create window!" << std::endl;
+        std::cerr << "Failed to create window!" << std::endl;
         return false;
     }
     
     if (!initializeOpenGL()) {
-        std::cerr << "❌ Failed to initialize OpenGL!" << std::endl;
+        std::cerr << "Failed to initialize OpenGL!" << std::endl;
         return false;
     }
     
     if (!initializeImGui()) {
-        std::cerr << "❌ Failed to initialize ImGui!" << std::endl;
+        std::cerr << "Failed to initialize ImGui!" << std::endl;
         return false;
     }
     
-    applyGamingTheme();
+    applyModernTheme();
     
-    std::cout << "✅ High-performance UI initialized successfully!" << std::endl;
+    std::cout << "High-performance UI initialized successfully!" << std::endl;
     return true;
 }
 
@@ -84,7 +84,7 @@ bool ImGuiUI::createWindow(HINSTANCE hInstance) {
     // Create window
     m_hwnd = CreateWindowW(
         wc.lpszClassName,
-        L"🎮 ScreenIT Arcade - High Performance Recording",
+        L"ScreenIT Arcade - High Performance Recording",
         WS_OVERLAPPEDWINDOW,
         100, 100,
         WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -154,61 +154,84 @@ bool ImGuiUI::initializeImGui() {
     return true;
 }
 
-void ImGuiUI::applyGamingTheme() {
+void ImGuiUI::applyModernTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
     
-    // Gaming color scheme
-    style.Colors[ImGuiCol_Text] = m_colors.neonBlue;
-    style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
-    style.Colors[ImGuiCol_WindowBg] = m_colors.pixelDark;
-    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_PopupBg] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_Border] = m_colors.neonBlue;
-    style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_FrameBg] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_FrameBgHovered] = m_colors.neonPurple;
-    style.Colors[ImGuiCol_FrameBgActive] = m_colors.neonPink;
-    style.Colors[ImGuiCol_TitleBg] = m_colors.pixelDark;
-    style.Colors[ImGuiCol_TitleBgActive] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_TitleBgCollapsed] = m_colors.pixelDark;
-    style.Colors[ImGuiCol_MenuBarBg] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_ScrollbarBg] = m_colors.pixelDark;
-    style.Colors[ImGuiCol_ScrollbarGrab] = m_colors.neonBlue;
-    style.Colors[ImGuiCol_ScrollbarGrabHovered] = m_colors.neonPink;
-    style.Colors[ImGuiCol_ScrollbarGrabActive] = m_colors.neonGreen;
-    style.Colors[ImGuiCol_CheckMark] = m_colors.neonGreen;
-    style.Colors[ImGuiCol_SliderGrab] = m_colors.neonOrange;
-    style.Colors[ImGuiCol_SliderGrabActive] = m_colors.neonPink;
-    style.Colors[ImGuiCol_Button] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_ButtonHovered] = m_colors.neonPurple;
-    style.Colors[ImGuiCol_ButtonActive] = m_colors.neonPink;
-    style.Colors[ImGuiCol_Header] = m_colors.pixelNavy;
-    style.Colors[ImGuiCol_HeaderHovered] = m_colors.neonPurple;
-    style.Colors[ImGuiCol_HeaderActive] = m_colors.neonPink;
+    // Modern professional color scheme
+    style.Colors[ImGuiCol_Text] = m_colors.charcoal;
+    style.Colors[ImGuiCol_TextDisabled] = m_colors.darkGray;
+    style.Colors[ImGuiCol_WindowBg] = m_colors.white;
+    style.Colors[ImGuiCol_ChildBg] = m_colors.lightGray;
+    style.Colors[ImGuiCol_PopupBg] = m_colors.white;
+    style.Colors[ImGuiCol_Border] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_BorderShadow] = m_colors.shadow;
+    style.Colors[ImGuiCol_FrameBg] = m_colors.lightGray;
+    style.Colors[ImGuiCol_FrameBgHovered] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_FrameBgActive] = m_colors.accent;
+    style.Colors[ImGuiCol_TitleBg] = m_colors.lightGray;
+    style.Colors[ImGuiCol_TitleBgActive] = m_colors.white;
+    style.Colors[ImGuiCol_TitleBgCollapsed] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_MenuBarBg] = m_colors.lightGray;
+    style.Colors[ImGuiCol_ScrollbarBg] = m_colors.lightGray;
+    style.Colors[ImGuiCol_ScrollbarGrab] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = m_colors.darkGray;
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = m_colors.accent;
+    style.Colors[ImGuiCol_CheckMark] = m_colors.success;
+    style.Colors[ImGuiCol_SliderGrab] = m_colors.accent;
+    style.Colors[ImGuiCol_SliderGrabActive] = m_colors.accentHover;
+    style.Colors[ImGuiCol_Button] = m_colors.lightGray;
+    style.Colors[ImGuiCol_ButtonHovered] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_ButtonActive] = m_colors.accent;
+    style.Colors[ImGuiCol_Header] = m_colors.lightGray;
+    style.Colors[ImGuiCol_HeaderHovered] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_HeaderActive] = m_colors.accent;
+    style.Colors[ImGuiCol_Tab] = m_colors.lightGray;
+    style.Colors[ImGuiCol_TabHovered] = m_colors.mediumGray;
+    style.Colors[ImGuiCol_TabActive] = m_colors.white;
     
-    // Gaming style parameters
-    style.WindowRounding = 8.0f;
-    style.FrameRounding = 6.0f;
-    style.PopupRounding = 6.0f;
+    // Modern style parameters - clean and minimal
+    style.WindowRounding = 12.0f;       // Larger, softer corners
+    style.ChildRounding = 8.0f;
+    style.FrameRounding = 8.0f;
+    style.PopupRounding = 12.0f;
     style.ScrollbarRounding = 6.0f;
     style.GrabRounding = 6.0f;
-    style.TabRounding = 6.0f;
-    style.WindowBorderSize = 2.0f;
-    style.FrameBorderSize = 1.0f;
+    style.TabRounding = 8.0f;
     
-    std::cout << "🌈 Applied gaming theme with neon colors!" << std::endl;
+    // Minimal borders and spacing
+    style.WindowBorderSize = 0.0f;      // No borders for clean look
+    style.ChildBorderSize = 0.0f;
+    style.FrameBorderSize = 0.0f;
+    style.PopupBorderSize = 1.0f;
+    style.TabBorderSize = 0.0f;
+    
+    // Generous spacing for breathing room
+    style.WindowPadding = ImVec2(20.0f, 20.0f);
+    style.FramePadding = ImVec2(12.0f, 8.0f);
+    style.CellPadding = ImVec2(8.0f, 6.0f);
+    style.ItemSpacing = ImVec2(12.0f, 8.0f);
+    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
+    style.TouchExtraPadding = ImVec2(0.0f, 0.0f);
+    style.IndentSpacing = 25.0f;
+    style.ScrollbarSize = 16.0f;
+    style.GrabMinSize = 12.0f;
+    
+    // Professional clean look - no extra shadows needed
+    // WindowShadowSize doesn't exist in ImGui, removed
+    
+    std::cout << "✨ Applied modern professional theme!" << std::endl;
 }
 
 void ImGuiUI::setScreenRecorder(ScreenRecorder* recorder) {
     m_recorder = recorder;
-    std::cout << "🔗 Connected to ScreenRecorder backend" << std::endl;
+    std::cout << "Connected to ScreenRecorder backend" << std::endl;
 }
 
 int ImGuiUI::run() {
     MSG msg;
     bool done = false;
     
-    std::cout << "🚀 Starting ultra-smooth render loop..." << std::endl;
+    std::cout << "Starting ultra-smooth render loop..." << std::endl;
     
     while (!done) {
         // Poll and handle messages (non-blocking)
@@ -257,7 +280,7 @@ int ImGuiUI::run() {
         // Rendering with proper viewport
         ImGui::Render();
         glViewport(0, 0, displayWidth, displayHeight);
-        glClearColor(m_colors.pixelDark.x, m_colors.pixelDark.y, m_colors.pixelDark.z, m_colors.pixelDark.w);
+        glClearColor(m_colors.lightGray.x, m_colors.lightGray.y, m_colors.lightGray.z, m_colors.lightGray.w);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         
@@ -304,12 +327,26 @@ void ImGuiUI::renderMainInterface() {
     ImGui::Spacing();
     ImGui::Indent(20.0f);
     
-    // Gaming title with emojis - centered
+    // Professional title - centered
     float windowWidth = ImGui::GetWindowSize().x;
-    std::string title = "🎮 SCREENIT ARCADE - MICROSCOPIC FILES 🚀";
-    float textWidth = ImGui::CalcTextSize(title.c_str()).x;
-    ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
-    ImGui::TextColored(m_colors.neonPink, "%s", title.c_str());
+    std::string title = "ScreenIT Pro";
+    std::string subtitle = "Professional Screen Recording";
+    
+    // Main title
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 4));
+    float titleWidth = ImGui::CalcTextSize(title.c_str()).x;
+    ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, m_colors.charcoal);
+    ImGui::TextUnformatted(title.c_str());
+    ImGui::PopStyleColor();
+    
+    // Subtitle
+    float subtitleWidth = ImGui::CalcTextSize(subtitle.c_str()).x;
+    ImGui::SetCursorPosX((windowWidth - subtitleWidth) * 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, m_colors.darkGray);
+    ImGui::TextUnformatted(subtitle.c_str());
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
     
     ImGui::Unindent(20.0f);
     ImGui::Spacing();
@@ -337,28 +374,28 @@ void ImGuiUI::renderMainInterface() {
 }
 
 void ImGuiUI::renderRecordingControls() {
-    ImGui::TextColored(m_colors.neonBlue, "🎬 CAPTURE STATION");
+    ImGui::TextColored(m_colors.charcoal, "Recording");
     
     // Recording stats in a grid
     if (ImGui::BeginTable("Stats", 4, ImGuiTableFlags_Borders)) {
-        ImGui::TableSetupColumn("⏰ TIME");
-        ImGui::TableSetupColumn("💾 SIZE");
-        ImGui::TableSetupColumn("🎯 FPS");
-        ImGui::TableSetupColumn("⚡ COMPRESSION");
+        ImGui::TableSetupColumn("TIME");
+        ImGui::TableSetupColumn("SIZE");
+        ImGui::TableSetupColumn("FPS");
+        ImGui::TableSetupColumn("COMPRESSION");
         ImGui::TableHeadersRow();
         
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
-        ImGui::TextColored(m_colors.neonGreen, "%s", formatTime(m_state.duration).c_str());
+        ImGui::TextColored(m_colors.charcoal, "%s", formatTime(m_state.duration).c_str());
         
         ImGui::TableSetColumnIndex(1);
-        ImGui::TextColored(m_colors.neonPink, "%s", formatFileSize(m_state.fileSize).c_str());
+        ImGui::TextColored(m_colors.charcoal, "%s", formatFileSize(m_state.fileSize).c_str());
         
         ImGui::TableSetColumnIndex(2);
-        ImGui::TextColored(m_colors.neonOrange, "%d", m_state.fps);
+        ImGui::TextColored(m_colors.charcoal, "%d", m_state.fps);
         
         ImGui::TableSetColumnIndex(3);
-        ImGui::TextColored(m_colors.neonGreen, "92%%");
+        ImGui::TextColored(m_colors.success, "92%%");
         
         ImGui::EndTable();
     }
@@ -368,16 +405,16 @@ void ImGuiUI::renderRecordingControls() {
     // Main recording button
     ImVec2 buttonSize(200, 50);
     if (!m_state.isRecording) {
-        ImGui::PushStyleColor(ImGuiCol_Button, m_colors.arcadeRed);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors.neonPink);
-        if (ImGui::Button("🔴 START CAPTURE!", buttonSize)) {
+        ImGui::PushStyleColor(ImGuiCol_Button, m_colors.recording);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors.accent);
+        if (ImGui::Button("START CAPTURE!", buttonSize)) {
             handleStartRecording();
         }
         ImGui::PopStyleColor(2);
     } else {
         // Show pause/stop buttons
-        ImGui::PushStyleColor(ImGuiCol_Button, m_colors.neonOrange);
-        if (ImGui::Button(m_state.isPaused ? "▶️ RESUME" : "⏸️ PAUSE", ImVec2(95, 50))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, m_colors.accent);
+        if (ImGui::Button(m_state.isPaused ? "RESUME" : "PAUSE", ImVec2(95, 50))) {
             handlePauseRecording();
         }
         ImGui::PopStyleColor();
@@ -385,7 +422,7 @@ void ImGuiUI::renderRecordingControls() {
         ImGui::SameLine();
         
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-        if (ImGui::Button("⏹️ STOP", ImVec2(95, 50))) {
+        if (ImGui::Button("STOP", ImVec2(95, 50))) {
             handleStopRecording();
         }
         ImGui::PopStyleColor();
@@ -394,7 +431,7 @@ void ImGuiUI::renderRecordingControls() {
     ImGui::Spacing();
     
     // Current settings display
-    ImGui::TextColored(m_colors.neonGreen, "⚙️ ACTIVE CONFIG:");
+    ImGui::TextColored(m_colors.charcoal, "Current Settings:");
     ImGui::Text("Codec: %s", codecToString(m_state.currentCodec));
     ImGui::Text("Quality: %s", qualityToString(m_state.currentQuality));
     if (!m_state.outputFile.empty()) {
@@ -403,7 +440,7 @@ void ImGuiUI::renderRecordingControls() {
 }
 
 void ImGuiUI::renderSettingsPanel() {
-    ImGui::TextColored(m_colors.neonPurple, "🛠️ SETTINGS PANEL");
+    ImGui::TextColored(m_colors.charcoal, "Settings");
     
     // Codec selection
     const char* codecs[] = { "H264_HARDWARE", "H264_SOFTWARE", "HEVC_HARDWARE", "HEVC_SOFTWARE" };
@@ -425,21 +462,21 @@ void ImGuiUI::renderSettingsPanel() {
     ImGui::Spacing();
     
     // Advanced options
-    if (ImGui::CollapsingHeader("🔧 Advanced Options")) {
-        ImGui::Text("Hardware Encoding: ✅ AMD AMF");
-        ImGui::Text("Audio Capture: 🔊 System + Mic");
+    if (ImGui::CollapsingHeader("Advanced Options")) {
+        ImGui::Text("Hardware Encoding: AMD AMF");
+        ImGui::Text("Audio Capture: System + Mic");
         ImGui::Text("Hotkeys: F9 Start/Stop, F10 Pause");
         
-        if (ImGui::Button("📁 Select Output Folder")) {
+        if (ImGui::Button("Select Output Folder")) {
             // TODO: File dialog
         }
     }
     
     // Debug options
-    if (ImGui::CollapsingHeader("🐛 Debug")) {
+    if (ImGui::CollapsingHeader("Debug")) {
         ImGui::Checkbox("Show ImGui Demo", &m_showDemo);
         if (ImGui::Button("Test Recording Backend")) {
-            std::cout << "🧪 Testing recording backend..." << std::endl;
+            std::cout << "Testing recording backend..." << std::endl;
         }
     }
 }
@@ -448,31 +485,31 @@ void ImGuiUI::renderStatusBar() {
     // Status indicator
     if (m_state.isRecording) {
         if (m_state.isPaused) {
-            ImGui::TextColored(m_colors.neonOrange, "⏸️ PAUSED");
+            ImGui::TextColored(m_colors.accent, "Paused");
         } else {
-            ImGui::TextColored(m_colors.neonPink, "🔴 LIVE RECORDING");
+            ImGui::TextColored(m_colors.recording, "Recording");
         }
     } else {
-        ImGui::TextColored(m_colors.neonGreen, "✅ READY TO RECORD");
+        ImGui::TextColored(m_colors.success, "Ready");
     }
     
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
-    ImGui::TextColored(m_colors.neonBlue, "🖥️ AMD TURBO");
+    ImGui::TextColored(m_colors.darkGray, "AMD Hardware");
     ImGui::SameLine();
-    ImGui::TextColored(m_colors.neonPurple, "💾 1.2TB FREE");
+    ImGui::TextColored(m_colors.darkGray, "1.2TB Available");
     ImGui::SameLine();
-    ImGui::TextColored(m_colors.neonOrange, "📺 1920×1200");
+    ImGui::TextColored(m_colors.darkGray, "1920×1200");
 }
 
 void ImGuiUI::handleStartRecording() {
     if (!m_recorder) {
-        std::cerr << "❌ No recorder connected!" << std::endl;
+        std::cerr << "No recorder connected!" << std::endl;
         return;
     }
     
-    std::cout << "🎮 Starting recording..." << std::endl;
+    std::cout << "Starting recording..." << std::endl;
     
     // Generate filename
     auto now = std::time(nullptr);
@@ -491,31 +528,31 @@ void ImGuiUI::handleStartRecording() {
         m_state.isPaused = false;
         m_state.duration = 0;
         m_state.fileSize = 0.0f;
-        std::cout << "✅ Recording started successfully!" << std::endl;
+        std::cout << "Recording started successfully!" << std::endl;
     } else {
-        std::cerr << "❌ Failed to start recording!" << std::endl;
+        std::cerr << "Failed to start recording!" << std::endl;
     }
 }
 
 void ImGuiUI::handleStopRecording() {
     if (!m_recorder) return;
     
-    std::cout << "🏁 Stopping recording..." << std::endl;
+    std::cout << "Stopping recording..." << std::endl;
     m_recorder->stop();
     m_state.isRecording = false;
     m_state.isPaused = false;
-    std::cout << "✅ Recording stopped!" << std::endl;
+    std::cout << "Recording stopped!" << std::endl;
 }
 
 void ImGuiUI::handlePauseRecording() {
     if (!m_recorder) return;
     
     if (m_state.isPaused) {
-        std::cout << "▶️ Resuming recording..." << std::endl;
+        std::cout << "Resuming recording..." << std::endl;
         m_recorder->resume();
         m_state.isPaused = false;
     } else {
-        std::cout << "⏸️ Pausing recording..." << std::endl;
+        std::cout << "Pausing recording..." << std::endl;
         m_recorder->pause();
         m_state.isPaused = true;
     }
