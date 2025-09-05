@@ -1,5 +1,7 @@
 #include "../include/screen_recorder.h"
 #include "../include/screen_ui.h"
+#include "../include/audio_capture.h"
+#include "../include/webcam_capture.h"
 #include <windows.h>
 #include <iostream>
 
@@ -7,6 +9,9 @@
 int main() {
     std::cout << "=== ScreenIT Debug Mode - TDD Verification ===" << std::endl;
     std::cout << "Checking FFmpeg integration..." << std::endl;
+    
+    // Trigger microphone permission request
+    std::cout << "Requesting microphone permissions..." << std::endl;
     
     // Create the screen recorder  
     ScreenRecorder recorder;
@@ -22,6 +27,20 @@ int main() {
     }
     
     std::cout << "Application initialized successfully." << std::endl;
+    
+    // TDD: Test device enumeration
+    std::cout << "\n=== Device Enumeration Test ===" << std::endl;
+    auto audioDevices = recorder.getAudioDevices();
+    std::cout << "Found " << audioDevices.size() << " audio devices:" << std::endl;
+    for (const auto& device : audioDevices) {
+        std::cout << "- " << device.name << (device.isDefault ? " (default)" : "") << std::endl;
+    }
+    
+    auto webcamDevices = recorder.getWebcamDevices();
+    std::cout << "Found " << webcamDevices.size() << " webcam devices:" << std::endl;
+    for (const auto& device : webcamDevices) {
+        std::cout << "- " << device.name << (device.isDefault ? " (default)" : "") << std::endl;
+    }
     
     // Run the UI message loop
     return ui.run();

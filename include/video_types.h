@@ -16,6 +16,7 @@ enum class VideoCodec {
 };
 
 enum class QualityPreset {
+    ULTRA_TINY,     // Extreme compression, may sacrifice readability
     SMALL_SHARP,    // Small file size, sharp quality for UI/text
     BALANCED,       // Good balance of size and quality
     HIGH_QUALITY,   // Larger files, better quality

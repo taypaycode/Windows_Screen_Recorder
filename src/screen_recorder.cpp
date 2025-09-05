@@ -2,6 +2,8 @@
 #ifdef HAVE_FFMPEG
 #include "../include/ffmpeg_encoder.h"
 #endif
+#include "../include/audio_capture.h"
+#include "../include/webcam_capture.h"
 #include <iostream>
 
 #ifdef _WIN32
@@ -12,7 +14,9 @@
 
 ScreenRecorder::ScreenRecorder() : recording(false), frameRate(30), duration(0), 
                                    screenWidth(0), screenHeight(0), screenLeft(0), screenTop(0),
-                                   currentCodec(VideoCodec::H264_HARDWARE), currentQuality(QualityPreset::SMALL_SHARP)
+                                   currentCodec(VideoCodec::H264_HARDWARE), currentQuality(QualityPreset::SMALL_SHARP),
+                                   audioEnabled(true), microphoneEnabled(true), systemAudioEnabled(true),
+                                   webcamEnabled(false)
 #ifdef HAVE_FFMPEG
                                    , useFFmpeg(true)
 #endif
@@ -24,6 +28,22 @@ ScreenRecorder::ScreenRecorder() : recording(false), frameRate(30), duration(0),
 #else
     std::cout << "❌ FFmpeg not available - using OpenCV fallback (larger files)" << std::endl;
 #endif
+
+    // Initialize audio capture
+    audioCapture = std::make_unique<AudioCapture>();
+    if (audioCapture->initialize()) {
+        std::cout << "✅ Audio capture system initialized" << std::endl;
+    } else {
+        std::cout << "❌ Failed to initialize audio capture" << std::endl;
+    }
+    
+    // Initialize webcam capture
+    webcamCapture = std::make_unique<WebcamCapture>();
+    if (webcamCapture->initialize()) {
+        std::cout << "✅ Webcam capture system initialized" << std::endl;
+    } else {
+        std::cout << "❌ Failed to initialize webcam capture" << std::endl;
+    }
     // Initialize with proper DPI awareness
 #ifdef _WIN32
     // Set DPI awareness to per-monitor for better handling of different DPI values
@@ -68,7 +88,9 @@ ScreenRecorder::~ScreenRecorder() {
 }
 
 bool ScreenRecorder::start(const std::string& outputFilename, int fps, double durationSec, 
-                           VideoCodec codec, QualityPreset quality) {
+                           VideoCodec codec, QualityPreset quality,
+                           bool enableAudio, bool enableMicrophone, bool enableSystemAudio,
+                           bool enableWebcam) {
     // Don't start if already recording
     if (recording) {
         std::cout << "Already recording!" << std::endl;
@@ -80,6 +102,14 @@ bool ScreenRecorder::start(const std::string& outputFilename, int fps, double du
     duration = durationSec;
     currentCodec = codec;
     currentQuality = quality;
+    
+    // Set audio options
+    audioEnabled = enableAudio;
+    microphoneEnabled = enableMicrophone;
+    systemAudioEnabled = enableSystemAudio;
+    
+    // Set webcam options
+    webcamEnabled = enableWebcam;
     
     // Initialize encoder (FFmpeg preferred, OpenCV fallback)
 #ifdef HAVE_FFMPEG
@@ -105,6 +135,26 @@ bool ScreenRecorder::start(const std::string& outputFilename, int fps, double du
     }
 #endif
     
+    // Start audio capture if enabled
+    if (audioEnabled && audioCapture) {
+        if (audioCapture->start(microphoneEnabled, systemAudioEnabled)) {
+            std::cout << "✅ Audio capture started" << std::endl;
+            audioThread = std::thread(&ScreenRecorder::audioProcessingThread, this);
+        } else {
+            std::cout << "⚠️  Failed to start audio capture" << std::endl;
+        }
+    }
+    
+    // Start webcam capture if enabled
+    if (webcamEnabled && webcamCapture) {
+        if (webcamCapture->start()) {
+            webcamCapture->setOverlayEnabled(true); // Enable overlay
+            std::cout << "✅ Webcam capture started with overlay enabled" << std::endl;
+        } else {
+            std::cout << "⚠️  Failed to start webcam capture" << std::endl;
+        }
+    }
+    
     // Start recording thread
     recording = true;
     recThread = std::thread(&ScreenRecorder::recordingThread, this);
@@ -127,10 +177,23 @@ void ScreenRecorder::stop() {
         return;
     }
     
-    // Signal thread to stop and wait for it
+    // Signal threads to stop and wait for them
     recording = false;
     if (recThread.joinable()) {
         recThread.join();
+    }
+    
+    // Stop audio capture
+    if (audioCapture) {
+        audioCapture->stop();
+    }
+    if (audioThread.joinable()) {
+        audioThread.join();
+    }
+    
+    // Stop webcam capture
+    if (webcamCapture) {
+        webcamCapture->stop();
     }
     
     // Release encoder
@@ -153,11 +216,20 @@ bool ScreenRecorder::isRecording() const {
 
 void ScreenRecorder::recordingThread() {
     cv::Mat frame;
-    auto startTime = std::chrono::high_resolution_clock::now();
+    auto startTime = std::chrono::steady_clock::now();
+    auto nextFrameTime = startTime;
+    const auto frameDuration = std::chrono::microseconds(1000000 / frameRate);
     
     while (recording) {
+        auto frameStart = std::chrono::steady_clock::now();
+        
         // Capture frame
         if (captureScreen(frame)) {
+            // Apply webcam overlay if enabled
+            if (webcamEnabled && webcamCapture) {
+                webcamCapture->applyOverlay(frame);
+            }
+            
 #ifdef HAVE_FFMPEG
             if (useFFmpeg && ffmpegEncoder) {
                 ffmpegEncoder->encodeFrame(frame);
@@ -171,7 +243,7 @@ void ScreenRecorder::recordingThread() {
         
         // Check if duration has elapsed (if specified)
         if (duration > 0) {
-            auto currentTime = std::chrono::high_resolution_clock::now();
+            auto currentTime = std::chrono::steady_clock::now();
             double elapsed = std::chrono::duration<double>(currentTime - startTime).count();
             if (elapsed >= duration) {
                 recording = false;
@@ -179,8 +251,15 @@ void ScreenRecorder::recordingThread() {
             }
         }
         
-        // Maintain frame rate
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / frameRate));
+        // Precise frame rate timing - wait until next frame time
+        nextFrameTime += frameDuration;
+        auto now = std::chrono::steady_clock::now();
+        if (nextFrameTime > now) {
+            std::this_thread::sleep_until(nextFrameTime);
+        } else {
+            // If we're behind schedule, reset timing to prevent drift
+            nextFrameTime = now;
+        }
     }
 }
 
@@ -516,4 +595,98 @@ double ScreenRecorder::estimateFileSize(int width, int height, int fps, double d
     double fileSizeMB = (bitrate * durationSec) / (8.0 * 1024.0);
     
     return fileSizeMB;
+}
+
+// Audio device management
+std::vector<AudioDevice> ScreenRecorder::getAudioDevices() {
+    if (audioCapture) {
+        return audioCapture->enumerateDevices();
+    }
+    return {};
+}
+
+bool ScreenRecorder::setMicrophoneDevice(const std::string& deviceId) {
+    if (audioCapture) {
+        return audioCapture->setMicrophoneDevice(deviceId);
+    }
+    return false;
+}
+
+bool ScreenRecorder::setSystemAudioDevice(const std::string& deviceId) {
+    if (audioCapture) {
+        return audioCapture->setSystemAudioDevice(deviceId);
+    }
+    return false;
+}
+
+float ScreenRecorder::getMicrophoneLevel() const {
+    if (audioCapture) {
+        return audioCapture->getMicrophoneLevel();
+    }
+    return 0.0f;
+}
+
+float ScreenRecorder::getSystemAudioLevel() const {
+    if (audioCapture) {
+        return audioCapture->getSystemAudioLevel();
+    }
+    return 0.0f;
+}
+
+// Audio processing thread function
+void ScreenRecorder::audioProcessingThread() {
+    std::cout << "🎵 Audio processing thread started" << std::endl;
+    
+    int sampleCount = 0;
+    while (recording && audioCapture) {
+        AudioSample sample;
+        if (audioCapture->getNextSample(sample)) {
+            sampleCount++;
+            if (sampleCount % 100 == 0) { // Log every 100 samples (~3.3 seconds at 30fps)
+                std::cout << "🎵 Processed " << sampleCount << " audio samples" << std::endl;
+            }
+            // TODO: Send audio samples to FFmpeg encoder for muxing
+            // This will be implemented when we update the FFmpeg encoder for audio
+        } else {
+            // Small delay if no audio data available
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    }
+    
+    std::cout << "🎵 Audio processing thread stopped (processed " << sampleCount << " samples total)" << std::endl;
+}
+
+// Webcam device management
+std::vector<WebcamDevice> ScreenRecorder::getWebcamDevices() {
+    if (webcamCapture) {
+        return webcamCapture->enumerateDevices();
+    }
+    return {};
+}
+
+bool ScreenRecorder::setWebcamDevice(int deviceId) {
+    if (webcamCapture) {
+        return webcamCapture->setDevice(deviceId);
+    }
+    return false;
+}
+
+void ScreenRecorder::setWebcamOverlayEnabled(bool enabled) {
+    if (webcamCapture) {
+        webcamCapture->setOverlayEnabled(enabled);
+    }
+}
+
+void ScreenRecorder::setWebcamOverlayProperties(float x, float y, float width, float height, int shape) {
+    if (webcamCapture) {
+        OverlayShape overlayShape = (shape == 0) ? OverlayShape::RECTANGLE : OverlayShape::CIRCLE;
+        webcamCapture->setOverlayProperties(x, y, width, height, overlayShape);
+    }
+}
+
+bool ScreenRecorder::isWebcamOverlayEnabled() const {
+    if (webcamCapture) {
+        return webcamCapture->isOverlayEnabled();
+    }
+    return false;
 } 

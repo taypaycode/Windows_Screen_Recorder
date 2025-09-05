@@ -32,7 +32,7 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
     }
     
     // Setup codec
-    if (!setupCodec(codec, quality)) {
+    if (!setupCodec(codec, quality, width, height, fps)) {
         std::cerr << "Failed to setup codec" << std::endl;
         return false;
     }
@@ -44,8 +44,12 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
     codecContext->framerate = {fps, 1};
     codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
     
-    // For CRF mode, don't set bitrate - let encoder decide
-    std::cout << "- Using CRF mode for optimal compression" << std::endl;
+    // Log encoder control mode depending on codec implementation
+    if (strstr(codecContext->codec->name, "h264_mf") || strstr(codecContext->codec->name, "h264_amf") || strstr(codecContext->codec->name, "h264_qsv")) {
+        std::cout << "- Using CBR mode for sharp UI" << std::endl;
+    } else if (strstr(codecContext->codec->name, "x264") || strstr(codecContext->codec->name, "h264")) {
+        std::cout << "- Using CRF mode for optimal compression" << std::endl;
+    }
     
     // Open codec
     if (avcodec_open2(codecContext, codecContext->codec, nullptr) < 0) {
@@ -53,14 +57,16 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
         return false;
     }
     
-    // Create video stream
+    // Create video stream and align timing to constant frame rate
     videoStream = avformat_new_stream(formatContext, nullptr);
     if (!videoStream) {
         std::cerr << "Failed to create video stream" << std::endl;
         return false;
     }
     
-    videoStream->time_base = codecContext->time_base;
+    videoStream->time_base = codecContext->time_base;           // 1/fps
+    videoStream->avg_frame_rate = {fps, 1};                      // nominal frame rate
+    videoStream->r_frame_rate = {fps, 1};
     
     // Copy codec parameters to stream
     if (avcodec_parameters_from_context(videoStream->codecpar, codecContext) < 0) {
@@ -142,6 +148,7 @@ bool FFmpegEncoder::encodeFrame(const cv::Mat& cvFrame) {
     sws_scale(swsContext, srcData, srcLinesize, 0, cvFrame.rows,
               frame->data, frame->linesize);
     
+    // PTS in stream time_base (1/fps). Using frameCount increments by exactly one per frame.
     frame->pts = frameCount++;
     
     return writeFrame(frame);
@@ -240,7 +247,7 @@ int FFmpegEncoder::getTargetBitrate(int width, int height, VideoCodec codec, Qua
 }
 
 #ifdef HAVE_FFMPEG
-bool FFmpegEncoder::setupCodec(VideoCodec codec, QualityPreset quality) {
+bool FFmpegEncoder::setupCodec(VideoCodec codec, QualityPreset quality, int width, int height, int fps) {
     const AVCodec* avCodec = nullptr;
     
     switch (codec) {
@@ -297,13 +304,37 @@ bool FFmpegEncoder::setupCodec(VideoCodec codec, QualityPreset quality) {
     }
     
     // Set quality-specific options for maximum compression
-    if (strstr(avCodec->name, "x264") || strstr(avCodec->name, "h264")) {
-        // H.264 specific settings optimized for screen recording
+    if (strstr(avCodec->name, "h264_mf") || strstr(avCodec->name, "h264_amf") || strstr(avCodec->name, "h264_qsv")) {
+        // Hardware H.264 (Media Foundation/AMF/QSV): use bitrate-based control for sharp UI
+        // Compute target bitrate ~ 5 Mbps @ 1920x1080 scaled by resolution
+        double pixelCount = width * height;
+        double referencePixels = 1920.0 * 1080.0;
+        double scale = std::max(0.5, pixelCount / referencePixels);
+        int targetKbps = static_cast<int>(5000 * scale); // kbps
+        targetKbps = std::min(std::max(targetKbps, 2500), 12000);
+
+        codecContext->bit_rate = static_cast<int64_t>(targetKbps) * 1000;
+        av_opt_set(codecContext->priv_data, "rc_mode", "cbr", 0);
+        av_opt_set_int(codecContext->priv_data, "b", codecContext->bit_rate, 0);
+        av_opt_set_int(codecContext->priv_data, "maxrate", codecContext->bit_rate, 0);
+        av_opt_set_int(codecContext->priv_data, "bufsize", codecContext->bit_rate * 2, 0);
+        av_opt_set_int(codecContext->priv_data, "g", fps * 2, 0); // GOP
+        av_opt_set_int(codecContext->priv_data, "bf", 0, 0);
+        av_opt_set(codecContext->priv_data, "profile", "high", 0);
+        av_opt_set(codecContext->priv_data, "level", "4.2", 0);
+        av_opt_set(codecContext->priv_data, "coder", "cabac", 0);
+        av_opt_set(codecContext->priv_data, "tune", "stillimage", 0);
+
+        std::cout << "- Using MF/QSV/AMF CBR ~" << targetKbps << " kbps for sharp UI" << std::endl;
+    }
+    else if (strstr(avCodec->name, "x264") || strstr(avCodec->name, "h264")) {
+        // Software x264: use CRF for excellent UI quality
         int crf = 23; // Default
         switch (quality) {
-            case QualityPreset::SMALL_SHARP: crf = 35; break;   // Much higher CRF for tiny files
-            case QualityPreset::BALANCED: crf = 28; break;
-            case QualityPreset::HIGH_QUALITY: crf = 23; break;
+            case QualityPreset::ULTRA_TINY: crf = 24; break;    // Still small but readable
+            case QualityPreset::SMALL_SHARP: crf = 19; break;   // Good quality, readable text
+            case QualityPreset::BALANCED: crf = 17; break;
+            case QualityPreset::HIGH_QUALITY: crf = 15; break;
             case QualityPreset::LOSSLESS: crf = 0; break;
         }
         
@@ -327,9 +358,10 @@ bool FFmpegEncoder::setupCodec(VideoCodec codec, QualityPreset quality) {
         // HEVC settings for even better compression
         int crf = 28;
         switch (quality) {
-            case QualityPreset::SMALL_SHARP: crf = 38; break;   // Aggressive HEVC compression
-            case QualityPreset::BALANCED: crf = 32; break;
-            case QualityPreset::HIGH_QUALITY: crf = 26; break;
+            case QualityPreset::ULTRA_TINY: crf = 30; break;    // Extreme HEVC compression but readable
+            case QualityPreset::SMALL_SHARP: crf = 26; break;   // Good HEVC compression, readable text
+            case QualityPreset::BALANCED: crf = 23; break;
+            case QualityPreset::HIGH_QUALITY: crf = 20; break;
             case QualityPreset::LOSSLESS: crf = 0; break;
         }
         

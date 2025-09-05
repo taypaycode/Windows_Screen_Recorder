@@ -1,4 +1,6 @@
 #include "../include/screen_ui.h"
+#include "../include/audio_capture.h"
+#include "../include/webcam_capture.h"
 #include <ctime>
 #include <sstream>
 #include <iomanip>
@@ -15,6 +17,15 @@
 #define IDC_QUALITY 2005
 #define IDC_START 2006
 #define IDC_STOP 2007
+#define IDC_ENABLE_AUDIO 2008
+#define IDC_MIC_ENABLED 2009
+#define IDC_SYSTEM_AUDIO_ENABLED 2010
+#define IDC_MIC_DEVICE 2011
+#define IDC_SYSTEM_DEVICE 2012
+#define IDC_ENABLE_WEBCAM 2013
+#define IDC_WEBCAM_DEVICE 2014
+#define IDC_OVERLAY_SHAPE 2015
+#define IDC_WEBCAM_PREVIEW 2016
 #define IDM_EXIT 3001
 #define IDM_SHOW 3002
 
@@ -190,14 +201,80 @@ void ScreenUI::createControls() {
     SendMessage(qualityComboBox, CB_ADDSTRING, 0, (LPARAM)L"Lossless (Huge files)");
     SendMessage(qualityComboBox, CB_SETCURSEL, 0, 0); // Default to Small & Sharp
     
+    // Add ULTRA_TINY to quality options
+    SendMessage(qualityComboBox, CB_INSERTSTRING, 0, (LPARAM)L"Ultra Tiny (May pixelate)");
+    SendMessage(qualityComboBox, CB_SETCURSEL, 1, 0); // Default to Small & Sharp (now index 1)
+    
+    // Audio Controls Group
+    audioGroupBox = CreateWindowEx(0, L"BUTTON", L"Audio Settings",
+                                   WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                                   20, 220, 340, 120, hwnd, NULL, hInstance, NULL);
+    
+    enableAudioCheckbox = CreateWindowEx(0, L"BUTTON", L"Enable Audio Recording",
+                                         WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BST_CHECKED,
+                                         30, 240, 160, 20, hwnd, (HMENU)IDC_ENABLE_AUDIO, hInstance, NULL);
+    
+    microphoneCheckbox = CreateWindowEx(0, L"BUTTON", L"Record Microphone",
+                                       WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BST_CHECKED,
+                                       30, 260, 140, 20, hwnd, (HMENU)IDC_MIC_ENABLED, hInstance, NULL);
+    
+    systemAudioCheckbox = CreateWindowEx(0, L"BUTTON", L"Record System Audio",
+                                         WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | BST_CHECKED,
+                                         30, 280, 140, 20, hwnd, (HMENU)IDC_SYSTEM_AUDIO_ENABLED, hInstance, NULL);
+    
+    CreateWindowEx(0, L"STATIC", L"Mic Device:", WS_CHILD | WS_VISIBLE,
+                   180, 260, 70, 20, hwnd, NULL, hInstance, NULL);
+    
+    micDeviceComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                       WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                       250, 260, 100, 100, hwnd, (HMENU)IDC_MIC_DEVICE, hInstance, NULL);
+    
+    CreateWindowEx(0, L"STATIC", L"System:", WS_CHILD | WS_VISIBLE,
+                   180, 280, 50, 20, hwnd, NULL, hInstance, NULL);
+    
+    systemDeviceComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                          WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                          230, 280, 120, 100, hwnd, (HMENU)IDC_SYSTEM_DEVICE, hInstance, NULL);
+    
+    // Webcam Controls Group
+    webcamGroupBox = CreateWindowEx(0, L"BUTTON", L"Webcam Settings",
+                                    WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                                    20, 350, 340, 80, hwnd, NULL, hInstance, NULL);
+    
+    enableWebcamCheckbox = CreateWindowEx(0, L"BUTTON", L"Enable Webcam Overlay",
+                                          WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                                          30, 370, 140, 20, hwnd, (HMENU)IDC_ENABLE_WEBCAM, hInstance, NULL);
+    
+    CreateWindowEx(0, L"STATIC", L"Device:", WS_CHILD | WS_VISIBLE,
+                   180, 370, 50, 20, hwnd, NULL, hInstance, NULL);
+    
+    webcamDeviceComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                          WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                          230, 370, 120, 100, hwnd, (HMENU)IDC_WEBCAM_DEVICE, hInstance, NULL);
+    
+    CreateWindowEx(0, L"STATIC", L"Shape:", WS_CHILD | WS_VISIBLE,
+                   30, 395, 50, 20, hwnd, NULL, hInstance, NULL);
+    
+    overlayShapeComboBox = CreateWindowEx(0, L"COMBOBOX", L"",
+                                          WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+                                          80, 395, 80, 100, hwnd, (HMENU)IDC_OVERLAY_SHAPE, hInstance, NULL);
+    
+    SendMessage(overlayShapeComboBox, CB_ADDSTRING, 0, (LPARAM)L"Rectangle");
+    SendMessage(overlayShapeComboBox, CB_ADDSTRING, 0, (LPARAM)L"Circle");
+    SendMessage(overlayShapeComboBox, CB_SETCURSEL, 0, 0);
+    
+    webcamPreviewButton = CreateWindowEx(0, L"BUTTON", L"Preview",
+                                         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                         170, 395, 60, 25, hwnd, (HMENU)IDC_WEBCAM_PREVIEW, hInstance, NULL);
+    
     // Create buttons (moved down to accommodate new controls)
     startButton = CreateWindowEx(0, L"BUTTON", L"Start Recording",
                                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                                 80, 220, 120, 30, hwnd, (HMENU)IDC_START, hInstance, NULL);
+                                 80, 450, 120, 30, hwnd, (HMENU)IDC_START, hInstance, NULL);
     
     stopButton = CreateWindowEx(0, L"BUTTON", L"Stop Recording",
                                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
-                                210, 220, 120, 30, hwnd, (HMENU)IDC_STOP, hInstance, NULL);
+                                210, 450, 120, 30, hwnd, (HMENU)IDC_STOP, hInstance, NULL);
     
     // Set fonts for better appearance
     HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
@@ -208,6 +285,23 @@ void ScreenUI::createControls() {
     SendMessage(qualityComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(startButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
     SendMessage(stopButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    
+    // Set fonts for new controls
+    SendMessage(audioGroupBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(enableAudioCheckbox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(microphoneCheckbox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(systemAudioCheckbox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(micDeviceComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(systemDeviceComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(webcamGroupBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(enableWebcamCheckbox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(webcamDeviceComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(overlayShapeComboBox, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    SendMessage(webcamPreviewButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+    
+    // Populate device lists
+    populateAudioDevices();
+    populateWebcamDevices();
 }
 
 // Create the tray icon
@@ -288,8 +382,15 @@ void ScreenUI::startRecording() {
     VideoCodec codec = getSelectedCodec();
     QualityPreset quality = getSelectedQuality();
     
-    // Start the recording with codec and quality settings
-    if (recorder->start(outputFilename, fps, duration, codec, quality)) {
+    // Get audio and webcam settings
+    bool audioEnabled = getAudioEnabled();
+    bool micEnabled = getMicrophoneEnabled();
+    bool systemAudioEnabled = getSystemAudioEnabled();
+    bool webcamEnabled = getWebcamEnabled();
+    
+    // Start the recording with all settings
+    if (recorder->start(outputFilename, fps, duration, codec, quality, 
+                       audioEnabled, micEnabled, systemAudioEnabled, webcamEnabled)) {
         isRecording = true;
         
         // Update UI
@@ -474,4 +575,78 @@ LRESULT CALLBACK ScreenUI::windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
     }
     
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+// Audio/Webcam control methods
+bool ScreenUI::getAudioEnabled() {
+    return SendMessage(enableAudioCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+bool ScreenUI::getMicrophoneEnabled() {
+    return SendMessage(microphoneCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+bool ScreenUI::getSystemAudioEnabled() {
+    return SendMessage(systemAudioCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+bool ScreenUI::getWebcamEnabled() {
+    return SendMessage(enableWebcamCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+void ScreenUI::populateAudioDevices() {
+    if (!recorder) return;
+    
+    // Clear existing items
+    SendMessage(micDeviceComboBox, CB_RESETCONTENT, 0, 0);
+    SendMessage(systemDeviceComboBox, CB_RESETCONTENT, 0, 0);
+    
+    // Get audio devices
+    auto devices = recorder->getAudioDevices();
+    
+    for (const auto& device : devices) {
+        std::wstring wName = stringToWideString(device.name);
+        
+        if (device.isInput) {
+            // Microphone device
+            int index = SendMessage(micDeviceComboBox, CB_ADDSTRING, 0, (LPARAM)wName.c_str());
+            if (device.isDefault) {
+                SendMessage(micDeviceComboBox, CB_SETCURSEL, index, 0);
+            }
+        } else {
+            // System audio device
+            int index = SendMessage(systemDeviceComboBox, CB_ADDSTRING, 0, (LPARAM)wName.c_str());
+            if (device.isDefault) {
+                SendMessage(systemDeviceComboBox, CB_SETCURSEL, index, 0);
+            }
+        }
+    }
+}
+
+void ScreenUI::populateWebcamDevices() {
+    if (!recorder) return;
+    
+    // Clear existing items
+    SendMessage(webcamDeviceComboBox, CB_RESETCONTENT, 0, 0);
+    
+    // Get webcam devices
+    auto devices = recorder->getWebcamDevices();
+    
+    for (const auto& device : devices) {
+        std::wstring wName = stringToWideString(device.name);
+        int index = SendMessage(webcamDeviceComboBox, CB_ADDSTRING, 0, (LPARAM)wName.c_str());
+        if (device.isDefault) {
+            SendMessage(webcamDeviceComboBox, CB_SETCURSEL, index, 0);
+        }
+    }
+}
+
+void ScreenUI::onAudioDeviceChanged() {
+    // Handle audio device selection change
+    // Implementation can be added later for real-time device switching
+}
+
+void ScreenUI::onWebcamDeviceChanged() {
+    // Handle webcam device selection change
+    // Implementation can be added later for real-time device switching
 } 

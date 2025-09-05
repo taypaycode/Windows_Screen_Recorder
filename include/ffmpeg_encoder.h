@@ -53,7 +53,7 @@ private:
     int64_t frameCount;
     
     // Helper methods
-    bool setupCodec(VideoCodec codec, QualityPreset quality);
+    bool setupCodec(VideoCodec codec, QualityPreset quality, int width, int height, int fps);
     bool setupFormat(const std::string& filename);
     bool writeFrame(AVFrame* frame);
 #endif

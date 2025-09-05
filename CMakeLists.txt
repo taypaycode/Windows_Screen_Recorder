@@ -19,8 +19,9 @@ find_library(FFMPEG_LIBAVCODEC avcodec)
 find_library(FFMPEG_LIBAVFORMAT avformat)
 find_library(FFMPEG_LIBAVUTIL avutil)
 find_library(FFMPEG_LIBSWSCALE swscale)
+find_library(FFMPEG_LIBSWRESAMPLE swresample)
 
-if(NOT FFMPEG_INCLUDE_DIR OR NOT FFMPEG_LIBAVCODEC OR NOT FFMPEG_LIBAVFORMAT OR NOT FFMPEG_LIBAVUTIL OR NOT FFMPEG_LIBSWSCALE)
+if(NOT FFMPEG_INCLUDE_DIR OR NOT FFMPEG_LIBAVCODEC OR NOT FFMPEG_LIBAVFORMAT OR NOT FFMPEG_LIBAVUTIL OR NOT FFMPEG_LIBSWSCALE OR NOT FFMPEG_LIBSWRESAMPLE)
     message(STATUS "FFmpeg not found, will download and build")
     set(FFMPEG_FOUND FALSE)
 else()
@@ -37,6 +38,8 @@ add_executable(${PROJECT_NAME} WIN32
     src/screen_recorder.cpp
     src/screen_ui.cpp
     src/ffmpeg_encoder.cpp
+    src/audio_capture.cpp
+    src/webcam_capture.cpp
     # ${RESOURCE_FILES}
 )
 
@@ -59,6 +62,8 @@ target_link_libraries(${PROJECT_NAME}
     user32
     shell32
     comctl32
+    ole32
+    winmm
 )
 
 # Link FFmpeg libraries if found
@@ -68,6 +73,7 @@ if(FFMPEG_FOUND)
         ${FFMPEG_LIBAVFORMAT}
         ${FFMPEG_LIBAVUTIL}
         ${FFMPEG_LIBSWSCALE}
+        ${FFMPEG_LIBSWRESAMPLE}
     )
 endif()
 

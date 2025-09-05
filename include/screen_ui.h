@@ -7,7 +7,7 @@
 
 // Window size constants
 #define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 380
+#define WINDOW_HEIGHT 520
 
 // Custom window messages
 #define WM_TRAYICON (WM_USER + 1)
@@ -60,6 +60,16 @@ private:
     VideoCodec getSelectedCodec();
     QualityPreset getSelectedQuality();
     
+    // Audio/Webcam control methods
+    bool getAudioEnabled();
+    bool getMicrophoneEnabled();
+    bool getSystemAudioEnabled();
+    bool getWebcamEnabled();
+    void populateAudioDevices();
+    void populateWebcamDevices();
+    void onAudioDeviceChanged();
+    void onWebcamDeviceChanged();
+    
     // Main window handle
     HWND hwnd;
     
@@ -71,6 +81,21 @@ private:
     HWND qualityComboBox;
     HWND startButton;
     HWND stopButton;
+    
+    // Audio controls
+    HWND audioGroupBox;
+    HWND enableAudioCheckbox;
+    HWND microphoneCheckbox;
+    HWND systemAudioCheckbox;
+    HWND micDeviceComboBox;
+    HWND systemDeviceComboBox;
+    
+    // Webcam controls
+    HWND webcamGroupBox;
+    HWND enableWebcamCheckbox;
+    HWND webcamDeviceComboBox;
+    HWND webcamPreviewButton;
+    HWND overlayShapeComboBox;
     
     // Menu items
     HMENU trayMenu;
