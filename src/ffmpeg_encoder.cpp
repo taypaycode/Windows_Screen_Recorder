@@ -1,7 +1,8 @@
 #include "../include/ffmpeg_encoder.h"
+#include "../include/audio_capture.h"
 #include <iostream>
 
-FFmpegEncoder::FFmpegEncoder() : initialized(false) {
+FFmpegEncoder::FFmpegEncoder() : initialized(false), audioEnabled(false) {
 #ifdef HAVE_FFMPEG
     formatContext = nullptr;
     codecContext = nullptr;
@@ -10,6 +11,18 @@ FFmpegEncoder::FFmpegEncoder() : initialized(false) {
     packet = nullptr;
     swsContext = nullptr;
     frameCount = 0;
+    
+    // Initialize audio-related members
+    micCodecContext = nullptr;
+    systemCodecContext = nullptr;
+    micAudioStream = nullptr;
+    systemAudioStream = nullptr;
+    micAudioFrame = nullptr;
+    systemAudioFrame = nullptr;
+    micSwrContext = nullptr;
+    systemSwrContext = nullptr;
+    micAudioFrameCount = 0;
+    systemAudioFrameCount = 0;
 #endif
 }
 
@@ -18,12 +31,15 @@ FFmpegEncoder::~FFmpegEncoder() {
 }
 
 bool FFmpegEncoder::init(const std::string& filename, int width, int height, int fps, 
-                        VideoCodec codec, QualityPreset quality) {
+                        VideoCodec codec, QualityPreset quality, bool enableAudio) {
 #ifdef HAVE_FFMPEG
+    audioEnabled = enableAudio;
+    
     std::cout << "Initializing FFmpeg encoder:" << std::endl;
     std::cout << "- Filename: " << filename << std::endl;
     std::cout << "- Resolution: " << width << "x" << height << std::endl;
     std::cout << "- FPS: " << fps << std::endl;
+    std::cout << "- Audio: " << (audioEnabled ? "enabled" : "disabled") << std::endl;
     
     // Allocate format context
     if (avformat_alloc_output_context2(&formatContext, nullptr, nullptr, filename.c_str()) < 0) {
@@ -65,6 +81,8 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
     }
     
     videoStream->time_base = codecContext->time_base;           // 1/fps
+    videoStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+    videoStream->avg_frame_rate = {fps, 1};                      // nominal frame rate
     videoStream->avg_frame_rate = {fps, 1};                      // nominal frame rate
     videoStream->r_frame_rate = {fps, 1};
     
@@ -72,6 +90,25 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
     if (avcodec_parameters_from_context(videoStream->codecpar, codecContext) < 0) {
         std::cerr << "Failed to copy codec parameters" << std::endl;
         return false;
+    }
+    
+    // Setup audio streams if enabled
+    if (audioEnabled) {
+        std::cout << "Setting up audio encoding..." << std::endl;
+        
+        // Setup microphone audio stream
+        if (!setupAudioCodec(micCodecContext, micAudioStream, micSwrContext, micAudioFrame)) {
+            std::cerr << "Failed to setup microphone audio codec" << std::endl;
+            return false;
+        }
+        
+        // Setup system audio stream
+        if (!setupAudioCodec(systemCodecContext, systemAudioStream, systemSwrContext, systemAudioFrame)) {
+            std::cerr << "Failed to setup system audio codec" << std::endl;
+            return false;
+        }
+        
+        std::cout << "✓ Audio encoding setup complete" << std::endl;
     }
     
     // Open output file
@@ -83,6 +120,11 @@ bool FFmpegEncoder::init(const std::string& filename, int width, int height, int
     }
     
     // Write header
+    // Hint muxer of packet time base for better CFR
+    if (videoStream && videoStream->time_base.num && videoStream->time_base.den) {
+        videoStream->codecpar->video_delay = 0;
+    }
+
     if (avformat_write_header(formatContext, nullptr) < 0) {
         std::cerr << "Failed to write header" << std::endl;
         return false;
@@ -148,8 +190,10 @@ bool FFmpegEncoder::encodeFrame(const cv::Mat& cvFrame) {
     sws_scale(swsContext, srcData, srcLinesize, 0, cvFrame.rows,
               frame->data, frame->linesize);
     
-    // PTS in stream time_base (1/fps). Using frameCount increments by exactly one per frame.
-    frame->pts = frameCount++;
+    // PTS in stream time_base (1/fps). Increment exactly one per frame.
+    frame->pts = frameCount;
+    frame->duration = 1; // each frame covers 1 tick of time_base
+    frameCount++;
     
     return writeFrame(frame);
 #else
@@ -163,21 +207,51 @@ void FFmpegEncoder::finish() {
         return;
     }
     
-    // Flush encoder
+    // Flush video encoder
     writeFrame(nullptr);
+    
+    // Flush audio encoders if enabled
+    if (audioEnabled) {
+        if (micCodecContext) {
+            flushEncoder(micCodecContext);
+        }
+        if (systemCodecContext) {
+            flushEncoder(systemCodecContext);
+        }
+    }
     
     // Write trailer
     if (formatContext) {
         av_write_trailer(formatContext);
     }
     
-    // Cleanup
+    // Cleanup video resources
     if (codecContext) {
         avcodec_free_context(&codecContext);
     }
     
     if (frame) {
         av_frame_free(&frame);
+    }
+    
+    // Cleanup audio resources
+    if (micCodecContext) {
+        avcodec_free_context(&micCodecContext);
+    }
+    if (systemCodecContext) {
+        avcodec_free_context(&systemCodecContext);
+    }
+    if (micAudioFrame) {
+        av_frame_free(&micAudioFrame);
+    }
+    if (systemAudioFrame) {
+        av_frame_free(&systemAudioFrame);
+    }
+    if (micSwrContext) {
+        swr_free(&micSwrContext);
+    }
+    if (systemSwrContext) {
+        swr_free(&systemSwrContext);
     }
     
     if (packet) {
@@ -452,8 +526,11 @@ bool FFmpegEncoder::writeFrame(AVFrame* frame) {
             return false;
         }
         
-        // Scale packet timestamps
+        // Scale packet timestamps and set duration for CBR players
         av_packet_rescale_ts(packet, codecContext->time_base, videoStream->time_base);
+        if (packet->duration == 0) {
+            packet->duration = 1; // 1 tick of stream time_base
+        }
         packet->stream_index = videoStream->index;
         
         // Write packet
@@ -466,6 +543,254 @@ bool FFmpegEncoder::writeFrame(AVFrame* frame) {
         }
     }
     
+    return true;
+}
+
+bool FFmpegEncoder::encodeAudio(const AudioSample& sample, bool isMicrophone) {
+    if (!audioEnabled || !initialized) {
+        return false;
+    }
+    
+    // Select the appropriate audio context and frame
+    AVCodecContext* audioCodecContext = isMicrophone ? micCodecContext : systemCodecContext;
+    AVStream* audioStream = isMicrophone ? micAudioStream : systemAudioStream;
+    AVFrame* audioFrame = isMicrophone ? micAudioFrame : systemAudioFrame;
+    SwrContext* swrContext = isMicrophone ? micSwrContext : systemSwrContext;
+    int64_t& audioFrameCount = isMicrophone ? micAudioFrameCount : systemAudioFrameCount;
+    std::vector<float>& fifo = isMicrophone ? micInputFifo : systemInputFifo;
+    int& srcRate = isMicrophone ? micSourceSampleRate : systemSourceSampleRate;
+    
+    if (!audioCodecContext || !audioStream || !audioFrame || !swrContext) {
+        return false;
+    }
+    
+    // Buffer incoming samples to ensure we feed exact frame sizes
+    if (srcRate == 0) {
+        srcRate = sample.sampleRate;
+    }
+    fifo.insert(fifo.end(), sample.data.begin(), sample.data.end());
+
+    const int channels = audioCodecContext->ch_layout.nb_channels;
+    const int frameSamples = audioCodecContext->frame_size; // per channel
+    
+    bool ok = true;
+    while (static_cast<int>(fifo.size()) >= frameSamples * channels) {
+        // Prepare input pointers for swr_convert: planar float input
+        const float* inputInterleaved = fifo.data();
+        const uint8_t* inPtrs[1] = { reinterpret_cast<const uint8_t*>(inputInterleaved) };
+        int inSamples = frameSamples; // per channel
+
+        // Make sure resampler matches current source rate and destination
+        AVChannelLayout srcLayout = AV_CHANNEL_LAYOUT_STEREO;
+        srcLayout.nb_channels = channels;
+        if (!ensureResamplerConfigured(swrContext, audioCodecContext->ch_layout, audioCodecContext->sample_fmt, audioCodecContext->sample_rate, srcLayout, srcRate)) {
+            std::cerr << "Failed to configure resampler" << std::endl;
+            return false;
+        }
+
+        // swr expects packed input when given 1 input pointer for FLT
+        int outSamples = swr_convert(swrContext,
+                                     audioFrame->data, frameSamples,
+                                     inPtrs, inSamples);
+        if (outSamples < 0) {
+            std::cerr << "Error resampling audio" << std::endl;
+            ok = false;
+            break;
+        }
+
+        // PTS in audio time_base (1/sample_rate)
+        audioFrame->nb_samples = outSamples;
+        audioFrame->pts = audioFrameCount;
+        audioFrameCount += outSamples;
+
+        ok &= writeAudioFrame(audioFrame, audioCodecContext, audioStream);
+
+        // Consume from FIFO
+        fifo.erase(fifo.begin(), fifo.begin() + frameSamples * channels);
+    }
+
+    return ok;
+}
+
+bool FFmpegEncoder::setupAudioCodec(AVCodecContext*& codecContext, AVStream*& stream, SwrContext*& swrContext, AVFrame*& audioFrame) {
+    // Find AAC encoder
+    const AVCodec* audioCodec = avcodec_find_encoder(AV_CODEC_ID_AAC);
+    if (!audioCodec) {
+        std::cerr << "AAC encoder not found" << std::endl;
+        return false;
+    }
+    
+    // Allocate codec context
+    codecContext = avcodec_alloc_context3(audioCodec);
+    if (!codecContext) {
+        std::cerr << "Failed to allocate audio codec context" << std::endl;
+        return false;
+    }
+    
+    // Set audio codec parameters
+    // Prefer AAC-native sample format if available; fallback to FLTP
+    codecContext->sample_fmt = audioCodec->sample_fmts ? audioCodec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+    codecContext->bit_rate = 128000; // 128 kbps
+    codecContext->sample_rate = 48000; // match common WASAPI mix rate to avoid resample artifacts
+    codecContext->ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+    codecContext->time_base = {1, codecContext->sample_rate};
+    
+    // Open the codec
+    if (avcodec_open2(codecContext, audioCodec, nullptr) < 0) {
+        std::cerr << "Failed to open audio codec" << std::endl;
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    // Create audio stream
+    stream = avformat_new_stream(formatContext, nullptr);
+    if (!stream) {
+        std::cerr << "Failed to create audio stream" << std::endl;
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    stream->time_base = codecContext->time_base; // 1/sample_rate
+    
+    // Copy codec parameters to stream
+    if (avcodec_parameters_from_context(stream->codecpar, codecContext) < 0) {
+        std::cerr << "Failed to copy audio codec parameters" << std::endl;
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    // Allocate audio frame
+    audioFrame = av_frame_alloc();
+    if (!audioFrame) {
+        std::cerr << "Failed to allocate audio frame" << std::endl;
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    audioFrame->format = codecContext->sample_fmt;
+    audioFrame->ch_layout = codecContext->ch_layout;
+    audioFrame->sample_rate = codecContext->sample_rate;
+    audioFrame->nb_samples = codecContext->frame_size;
+    
+    if (av_frame_get_buffer(audioFrame, 0) < 0) {
+        std::cerr << "Failed to allocate audio frame buffer" << std::endl;
+        av_frame_free(&audioFrame);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    // Setup audio resampler (convert from input format to codec format)
+    int ret = swr_alloc_set_opts2(&swrContext,
+                                 &codecContext->ch_layout, codecContext->sample_fmt, codecContext->sample_rate,
+                                 &codecContext->ch_layout, AV_SAMPLE_FMT_FLT, codecContext->sample_rate, // initial src = dst
+                                 0, nullptr);
+    
+    if (ret < 0 || !swrContext) {
+        std::cerr << "Failed to allocate resampler context" << std::endl;
+        av_frame_free(&audioFrame);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    if (swr_init(swrContext) < 0) {
+        std::cerr << "Failed to initialize resampler" << std::endl;
+        swr_free(&swrContext);
+        av_frame_free(&audioFrame);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+    
+    std::cout << "✓ Audio codec setup complete (AAC 128kbps 44.1kHz stereo)" << std::endl;
+    return true;
+}
+
+bool FFmpegEncoder::writeAudioFrame(AVFrame* audioFrame, AVCodecContext* codecContext, AVStream* stream) {
+    int ret = avcodec_send_frame(codecContext, audioFrame);
+    if (ret < 0) {
+        std::cerr << "Error sending audio frame to encoder" << std::endl;
+        return false;
+    }
+    
+    AVPacket* audioPacket = av_packet_alloc();
+    if (!audioPacket) {
+        return false;
+    }
+    
+    while (ret >= 0) {
+        ret = avcodec_receive_packet(codecContext, audioPacket);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            break;
+        } else if (ret < 0) {
+            std::cerr << "Error encoding audio frame" << std::endl;
+            av_packet_free(&audioPacket);
+            return false;
+        }
+        
+        // Scale packet timestamps and set duration in samples
+        av_packet_rescale_ts(audioPacket, codecContext->time_base, stream->time_base);
+        if (audioPacket->duration == 0) {
+            audioPacket->duration = audioFrame ? audioFrame->nb_samples : codecContext->frame_size;
+        }
+        audioPacket->stream_index = stream->index;
+        
+        // Write packet
+        ret = av_interleaved_write_frame(formatContext, audioPacket);
+        av_packet_unref(audioPacket);
+        
+        if (ret < 0) {
+            std::cerr << "Error writing audio packet" << std::endl;
+            av_packet_free(&audioPacket);
+            return false;
+        }
+    }
+    
+    av_packet_free(&audioPacket);
+    return true;
+}
+
+void FFmpegEncoder::flushEncoder(AVCodecContext* codecContext) {
+    if (!codecContext) return;
+    
+    // Send NULL frame to flush
+    avcodec_send_frame(codecContext, nullptr);
+    
+    AVPacket* packet = av_packet_alloc();
+    if (!packet) return;
+    
+    while (true) {
+        int ret = avcodec_receive_packet(codecContext, packet);
+        if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) {
+            break;
+        } else if (ret < 0) {
+            std::cerr << "Error flushing encoder" << std::endl;
+            break;
+        }
+        
+        av_packet_unref(packet);
+    }
+    
+    av_packet_free(&packet);
+}
+
+bool FFmpegEncoder::ensureResamplerConfigured(SwrContext*& swr,
+                                   const AVChannelLayout& dstLayout,
+                                   AVSampleFormat dstFmt,
+                                   int dstRate,
+                                   const AVChannelLayout& srcLayout,
+                                   int srcRate) {
+    // Recreate swr if not yet allocated or if src rate differs
+    if (!swr) {
+        int ret = swr_alloc_set_opts2(&swr,
+                                      &dstLayout, dstFmt, dstRate,
+                                      &srcLayout, AV_SAMPLE_FMT_FLT, srcRate,
+                                      0, nullptr);
+        if (ret < 0 || !swr) return false;
+        if (swr_init(swr) < 0) {
+            swr_free(&swr);
+            return false;
+        }
+        return true;
+    }
     return true;
 }
 #endif

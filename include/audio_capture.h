@@ -33,9 +33,11 @@ struct AudioDevice {
  * @brief Audio sample data
  */
 struct AudioSample {
+    enum class Source { Microphone, System };
     std::vector<float> data;
     int sampleRate;
     int channels;
+    Source source;
     std::chrono::steady_clock::time_point timestamp;
 };
 

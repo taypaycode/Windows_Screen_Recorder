@@ -374,6 +374,7 @@ void AudioCapture::captureThreadProc() {
                     AudioSample sample;
                     sample.sampleRate = micFormat->nSamplesPerSec;
                     sample.channels = micFormat->nChannels;
+                    sample.source = AudioSample::Source::Microphone;
                     sample.timestamp = std::chrono::steady_clock::now();
 
                     if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
@@ -410,6 +411,7 @@ void AudioCapture::captureThreadProc() {
                     AudioSample sample;
                     sample.sampleRate = systemFormat->nSamplesPerSec;
                     sample.channels = systemFormat->nChannels;
+                    sample.source = AudioSample::Source::System;
                     sample.timestamp = std::chrono::steady_clock::now();
 
                     if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {

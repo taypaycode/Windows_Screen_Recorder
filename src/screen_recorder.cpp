@@ -114,7 +114,7 @@ bool ScreenRecorder::start(const std::string& outputFilename, int fps, double du
     // Initialize encoder (FFmpeg preferred, OpenCV fallback)
 #ifdef HAVE_FFMPEG
     if (useFFmpeg) {
-        if (!ffmpegEncoder->init(outputFile, screenWidth, screenHeight, frameRate, codec, quality)) {
+        if (!ffmpegEncoder->init(outputFile, screenWidth, screenHeight, frameRate, codec, quality, audioEnabled)) {
             std::cerr << "FFmpeg encoder failed, falling back to OpenCV..." << std::endl;
             useFFmpeg = false;
         }
@@ -135,6 +135,9 @@ bool ScreenRecorder::start(const std::string& outputFilename, int fps, double du
     }
 #endif
     
+    // Mark recording active before launching worker threads (so they don't exit early)
+    recording = true;
+
     // Start audio capture if enabled
     if (audioEnabled && audioCapture) {
         if (audioCapture->start(microphoneEnabled, systemAudioEnabled)) {
@@ -155,8 +158,7 @@ bool ScreenRecorder::start(const std::string& outputFilename, int fps, double du
         }
     }
     
-    // Start recording thread
-    recording = true;
+    // Start recording thread last
     recThread = std::thread(&ScreenRecorder::recordingThread, this);
     
     std::cout << "Recording started to " << outputFile << " with ";
@@ -637,23 +639,42 @@ float ScreenRecorder::getSystemAudioLevel() const {
 void ScreenRecorder::audioProcessingThread() {
     std::cout << "🎵 Audio processing thread started" << std::endl;
     
-    int sampleCount = 0;
+    int micSampleCount = 0;
+    int systemSampleCount = 0;
+    
     while (recording && audioCapture) {
         AudioSample sample;
         if (audioCapture->getNextSample(sample)) {
-            sampleCount++;
-            if (sampleCount % 100 == 0) { // Log every 100 samples (~3.3 seconds at 30fps)
-                std::cout << "🎵 Processed " << sampleCount << " audio samples" << std::endl;
+            // Send audio samples to FFmpeg encoder if using FFmpeg
+#ifdef HAVE_FFMPEG
+            if (useFFmpeg && ffmpegEncoder) {
+                bool isMicrophone = (sample.source == AudioSample::Source::Microphone);
+                
+                if (ffmpegEncoder->encodeAudio(sample, isMicrophone)) {
+                    if (isMicrophone) {
+                        micSampleCount++;
+                        if (micSampleCount % 100 == 0) {
+                            std::cout << "🎤 Encoded " << micSampleCount << " microphone samples" << std::endl;
+                        }
+                    } else {
+                        systemSampleCount++;
+                        if (systemSampleCount % 100 == 0) {
+                            std::cout << "🔊 Encoded " << systemSampleCount << " system audio samples" << std::endl;
+                        }
+                    }
+                } else {
+                    std::cerr << "⚠️  Failed to encode audio sample" << std::endl;
+                }
             }
-            // TODO: Send audio samples to FFmpeg encoder for muxing
-            // This will be implemented when we update the FFmpeg encoder for audio
+#endif
         } else {
             // Small delay if no audio data available
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
     
-    std::cout << "🎵 Audio processing thread stopped (processed " << sampleCount << " samples total)" << std::endl;
+    std::cout << "🎵 Audio processing thread stopped (mic: " << micSampleCount 
+              << ", system: " << systemSampleCount << " samples)" << std::endl;
 }
 
 // Webcam device management

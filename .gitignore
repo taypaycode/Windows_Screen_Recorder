@@ -1,3 +1,34 @@
+# Build artifacts
+/build/
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.tlog/
+*.vcxproj.user
+
+# Visual Studio
+.vs/
+
+# vcpkg installed packages (local user path)
+/vcpkg_installed/
+
+# Node/electron remnants if present
+node_modules/
+
+# OpenCV binaries if copied locally
+/opencv/
+
+# Downloaded FFmpeg
+/ffmpeg/
+
+# Output recordings
+*.mp4
+*.avi
+*.mov
+
+# Logs
+*.log
 # Build directories
 build/
 Release/
